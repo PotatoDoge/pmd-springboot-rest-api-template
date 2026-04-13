@@ -1,0 +1,3 @@
+spring:
+  application:
+    name: pmd-springboot-rest-api-template
