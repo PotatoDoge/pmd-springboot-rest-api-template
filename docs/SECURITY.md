@@ -140,6 +140,113 @@ public PasswordEncoder passwordEncoder() {
 }
 ```
 
+## CORS Configuration
+
+Configure Cross-Origin Resource Sharing to allow requests from specific frontend domains.
+
+### Basic CORS Setup
+
+Add CORS configuration to `SecurityConfig.java`:
+
+```java
+@Bean
+public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration configuration = new CorsConfiguration();
+
+    // Allow specific origins (replace with your frontend URLs)
+    configuration.setAllowedOrigins(Arrays.asList(
+        "http://localhost:3000",  // React dev server
+        "http://localhost:4200",  // Angular dev server
+        "https://yourdomain.com"  // Production frontend
+    ));
+
+    // Or allow all origins (NOT recommended for production)
+    // configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+
+    configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+    configuration.setExposedHeaders(Arrays.asList("Authorization"));
+    configuration.setAllowCredentials(true);
+    configuration.setMaxAge(3600L);
+
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", configuration);
+    return source;
+}
+```
+
+Then update `securityFilterChain` to use CORS:
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+    http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(AbstractHttpConfigurer::disable)
+            .authorizeHttpRequests(auth -> auth
+                    .requestMatchers("/api/auth/**", "/actuator/health", "/h2-console/**").permitAll()
+                    .anyRequest().authenticated()
+            )
+            // ... rest of configuration
+}
+```
+
+### Environment-Based CORS
+
+For different environments, use properties:
+
+**application.yaml**:
+```yaml
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+```
+
+**In SecurityConfig**:
+```java
+@Value("${cors.allowed-origins}")
+private String allowedOrigins;
+
+@Bean
+public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration configuration = new CorsConfiguration();
+    configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+    // ... rest of configuration
+}
+```
+
+**Environment variable**:
+```bash
+CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
+```
+
+### Security Considerations
+
+**Best Practices**:
+- Never use `*` for `allowedOrigins` in production
+- Use specific domains instead of wildcard patterns
+- Set `allowCredentials(true)` only if needed for cookies/auth
+- Limit `allowedMethods` to only what's necessary
+- Use `exposedHeaders` to whitelist headers accessible to frontend
+
+**Development vs Production**:
+```java
+@Profile("dev")
+@Bean
+public CorsConfigurationSource devCorsConfigurationSource() {
+    CorsConfiguration config = new CorsConfiguration();
+    config.setAllowedOriginPatterns(Arrays.asList("*")); // Permissive for dev
+    // ... rest of config
+}
+
+@Profile("prod")
+@Bean
+public CorsConfigurationSource prodCorsConfigurationSource() {
+    CorsConfiguration config = new CorsConfiguration();
+    config.setAllowedOrigins(Arrays.asList("https://yourdomain.com")); // Strict for prod
+    // ... rest of config
+}
+```
+
 ## Role-Based Access Control (RBAC)
 
 Add to controllers:
